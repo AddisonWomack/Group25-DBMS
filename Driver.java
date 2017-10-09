@@ -1,3 +1,4 @@
+import javax.swing.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -24,4 +25,33 @@ public class Driver {
         }
 
     }
+}
+
+class ProjectFrame extends JFrame {
+
+    // contains four buttons
+    public void Option1() {
+
+    }
+
+    public void Option2() {
+
+    }
+
+    public void Option3() {
+
+    }
+
+    // Gracefully Exits program
+    public void Option4() {
+        System.exit(0);
+    }
+}
+
+class InputFrame extends JFrame {
+
+}
+
+class OutputPanel extends JPanel {
+
 }
