@@ -3,8 +3,8 @@ import java.sql.*;
 
 public class Driver {
 
-    static final String oracleLoginName = "";
-    static final String oraclePassword = "";
+    private final String oracleLoginName = "";
+    private final String oraclePassword = "";
 
     public static void main(String[] args) {
 
@@ -20,21 +20,23 @@ public class Driver {
         }
 
         try{
+            // initializes connection object
             dbConnection= DriverManager.getConnection
                     ("jdbc:oracle:thin:@//oracle.cs.ou.edu:1521/pdborcl.cs.ou.edu",oracleLoginName,oraclePassword);
             Statement stmt = dbConnection.createStatement();
 
+            // initialize the number of orders
             Integer numberOfOrders = 0;
             String avgNumberOfOrdersQuery1 = String.format("SELECT AVG(number_of_orders) " +
                     "FROM customer" +
                     "WHERE lvl = '%s'; ", level);
 
+            // returns set of average number of orders
             ResultSet resultSet1 = stmt.executeQuery(avgNumberOfOrdersQuery1);
             if (resultSet1.next()) {
                 numberOfOrders = (int)Math.round(resultSet1.getDouble(1));
             } else {
-                String avgNumberOfOrdersQuery2 = String.format("SELECT AVG(number_of_orders) " +
-                        "FROM customer");
+                String avgNumberOfOrdersQuery2 = "SELECT AVG(number_of_orders) FROM customer";
 
                 ResultSet resultSet2 = stmt.executeQuery(avgNumberOfOrdersQuery2);
                 if(resultSet2.next()) {
@@ -57,6 +59,7 @@ public class Driver {
         }
     }
 
+    // Increases the salaries of all the translators
     public void TranslatorSalaryHike(String authorName) {
         Connection dbConnection;
         try {
@@ -64,6 +67,10 @@ public class Driver {
         } catch(Exception ex) {
             System.out.println("Unable to load driver class: " + ex.getMessage());
         }
+
+        //////////////////
+        /// REWRITE USING PL SQL
+        //////////////////
 
         try{
             dbConnection= DriverManager.getConnection
@@ -96,10 +103,10 @@ public class Driver {
                     "JOIN book ON book.tid = translator.tid " +
                     "GROUP BY tname HAVING COUNT(tname) > 2)",authorName);
 
+            // executes the statements
             stmt.execute(translatedAuthor);
             stmt.execute(didNotTranslateAuthorAnd3OrMoreBooks);
             stmt.execute(didNotTranslateAuthorAndLessThan3Books);
-
         }
         catch( SQLException x ){
             System.out.println( "Couldn't get connection!" );
@@ -111,8 +118,67 @@ public class Driver {
 
     }
 
-    public void Option3() {
+    // Returns a result set of customers
+    public ResultSet GetCustomers() {
 
+        Connection dbConnection;
+        try {
+            Class.forName("oracle.jdbc.OracleDriver");
+        } catch(Exception ex) {
+            System.out.println("Unable to load driver class: " + ex.getMessage());
+        }
+
+        try{
+            dbConnection= DriverManager.getConnection
+                    ("jdbc:oracle:thin:@//oracle.cs.ou.edu:1521/pdborcl.cs.ou.edu",oracleLoginName,oraclePassword);
+            Statement stmt = dbConnection.createStatement();
+
+            // Query for selecting customer
+            String customerQuery = "SELECT * FROM customer;";
+
+            return stmt.executeQuery(customerQuery);
+
+        }
+        catch( SQLException x ){
+            System.out.println( "Couldn't get connection!" );
+        }
+        catch( Exception e) {
+            System.out.println(e.getMessage());
+            System.out.println("Exception occurred in executing the statement!");
+        }
+        return null;
+    }
+
+    // Returns a result set of translators
+    public ResultSet GetTranslators() {
+
+        Connection dbConnection;
+        try {
+            Class.forName("oracle.jdbc.OracleDriver");
+        } catch(Exception ex) {
+            System.out.println("Unable to load driver class: " + ex.getMessage());
+        }
+
+        try{
+            // initializes database connection
+            dbConnection= DriverManager.getConnection
+                    ("jdbc:oracle:thin:@//oracle.cs.ou.edu:1521/pdborcl.cs.ou.edu",oracleLoginName,oraclePassword);
+            Statement stmt = dbConnection.createStatement();
+
+            // Query for selecting all translation
+            String translatorQuery = "SELECT * FROM translator;";
+
+            // Executes query and returns the result set
+            return stmt.executeQuery(translatorQuery);
+        }
+        catch( SQLException x ){
+            System.out.println( "Couldn't get connection!" );
+        }
+        catch( Exception e) {
+            System.out.println(e.getMessage());
+            System.out.println("Exception occurred in executing the statement!");
+        }
+        return null;
     }
 
     // Gracefully Exits program
