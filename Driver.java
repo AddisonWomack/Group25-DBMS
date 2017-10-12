@@ -3,21 +3,14 @@ import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.sql.*;
 
-public class Driver {
+class SteeringWheel {
 
     private final String oracleLoginName = "";
     private final String oraclePassword = "";
-    private static Driver.ProjectFrame p = new Driver.ProjectFrame();
-
-    public static void main(String[] args) {
-        p.setContentPane(p.masterPanel);
-        p.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        p.setTitle("Group25 Project");
-        p.pack();
-        p.setVisible(true);
-    }
 
     // Adds a customer to the database and calculates the number of orders for that customer
     public void AddCustomer(int id, String name, String level) {
@@ -191,11 +184,15 @@ public class Driver {
     }
 
     // Gracefully Exits program
-    public static void Option4() {
-        System.exit(0);
+    public void Option4() {
+        int dialogButton = JOptionPane.YES_NO_OPTION;
+        int dialogResult = JOptionPane.showConfirmDialog(null, "Are you sure you want to quit?", "Warning", dialogButton);
+        if (dialogResult == JOptionPane.YES_OPTION) {
+            System.exit(0);
+        }
     }
 
-    static class ProjectFrame extends JFrame {
+    public class ProjectFrame extends JFrame {
 
         OutputPanel textPanel;
         JButton insertCustomerButton;
@@ -204,37 +201,83 @@ public class Driver {
         JButton quitButton;
         JPanel masterPanel;
         JScrollPane displayPanel;
+        JTextArea displayArea;
 
         ProjectFrame() {
+            setContentPane(masterPanel);
+            setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    Option4();
+                }
+            });
+            setTitle("Group25 Project");
+            setSize(700, 450);
             insertCustomerButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
+                    JTextField idField = new JTextField(5);
+                    JTextField cNameField = new JTextField(5);
+                    JTextField levelField = new JTextField(5);
 
+                    JPanel myPanel = new JPanel();
+                    myPanel.add(new JLabel("ID:"));
+                    myPanel.add(idField);
+                    myPanel.add(Box.createHorizontalStrut(15)); // a spacer
+                    myPanel.add(new JLabel("Name:"));
+                    myPanel.add(cNameField);
+                    myPanel.add(Box.createHorizontalStrut(15));
+                    myPanel.add(new JLabel("Level:"));
+                    myPanel.add(levelField);
+                    myPanel.add(Box.createHorizontalStrut(15));
+
+                    int result = JOptionPane.showConfirmDialog(null, myPanel,
+                            "Please Enter X and Y Values", JOptionPane.OK_CANCEL_OPTION);
+                    if (result == JOptionPane.OK_OPTION) {
+                        AddCustomer(Integer.parseInt(idField.getText()), cNameField.getText(), levelField.getText());
+                    }
                 }
             });
 
             hikeSallariesButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-
+                    String userInput = JOptionPane.showInputDialog(null, "Please enter the name of the author.");
+                    if (userInput == null) {
+                        System.out.println("The user canceled");
+                    } else {
+                        TranslatorSalaryHike(userInput);
+                    }
                 }
             });
 
             updateDisplayButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-
+                    StringBuilder returnString = new StringBuilder("Customers:\n");
+                    ResultSet cSet = GetCustomers();
+                    ResultSet tSet = GetTranslators();
+                    try {
+                        while (cSet.next()) {
+                            returnString.append(cSet.getString("cid") + ": " + cSet.getString("cname") + ", " + cSet.getString("number_of_orders") + ", " + cSet.getString("level") + "\n");
+                        }
+                        returnString.append("\nTranslators:\n");
+                        while (tSet.next()) {
+                            returnString.append(tSet.getString("cid") + ": " + tSet.getString("cname") + ", " + tSet.getString("number_of_orders") + ", " + tSet.getString("level") + "\n");
+                        }
+                        displayArea.setText(returnString.toString());
+                        displayPanel.setViewportView(displayArea);
+                    } catch (SQLException e1) {
+                        e1.printStackTrace();
+                    }
                 }
             });
 
             quitButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    int dialogButton = JOptionPane.YES_NO_OPTION;
-                    int dialogResult = JOptionPane.showConfirmDialog(null, "Are you sure you want to quit?", "Warning", dialogButton);
-                    if (dialogResult == JOptionPane.YES_OPTION) {
-                        Driver.Option4();
-                    }
+                    Option4();
                 }
             });
         }
@@ -311,6 +354,10 @@ public class Driver {
             gbc.fill = GridBagConstraints.BOTH;
             masterPanel.add(displayPanel, gbc);
             displayPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLoweredBevelBorder(), "Customers and Translators", TitledBorder.RIGHT, TitledBorder.TOP));
+            displayArea = new JTextArea();
+            displayArea.setEditable(false);
+            displayArea.setEnabled(true);
+            displayPanel.setViewportView(displayArea);
         }
 
         /**
@@ -327,5 +374,15 @@ public class Driver {
 
     class OutputPanel extends JScrollPane {
 
+    }
+}
+
+public class Driver {
+    public static void main(String[] args) {
+        SteeringWheel s = new SteeringWheel();
+        SteeringWheel.ProjectFrame p = s.new ProjectFrame();
+
+        //p.pack();
+        p.setVisible(true);
     }
 }
