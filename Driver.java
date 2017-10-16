@@ -7,13 +7,15 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.sql.*;
 
-class SteeringWheel {
+class GroupProject {
 
-    private final String oracleLoginName = "";
-    private final String oraclePassword = "";
+    // Oracle Login Info
+    private final String oracleLoginName = "woma0627";
+    private final String oraclePassword = "LIap0Cb7";
 
     // Adds a customer to the database and calculates the number of orders for that customer
     public void AddCustomer(int id, String name, String level) {
+        // Declares DB connection and creates DB Driver
         Connection dbConnection;
         try {
             Class.forName("oracle.jdbc.OracleDriver");
@@ -27,33 +29,46 @@ class SteeringWheel {
                     ("jdbc:oracle:thin:@//oracle.cs.ou.edu:1521/pdborcl.cs.ou.edu",oracleLoginName,oraclePassword);
             Statement stmt = dbConnection.createStatement();
 
-            // initialize the number of orders
-            Integer numberOfOrders = 0;
-            String avgNumberOfOrdersQuery1 = String.format("SELECT AVG(number_of_orders) " +
-                    "FROM customer" +
-                    "WHERE lvl = '%s'; ", level);
+            // Instantiate Stored Procedures
+            init(dbConnection);
 
-            // returns set of average number of orders
+            // initialize the number of orders
+            int numberOfOrders = 0;
+
+
+            String avgNumberOfOrdersQuery1 = String.format("SELECT AVG(number_of_orders), Count(cid) " +
+                    "FROM customer " +
+                    "WHERE lvl = '%s'", level);
+
             ResultSet resultSet1 = stmt.executeQuery(avgNumberOfOrdersQuery1);
             if (resultSet1.next()) {
-                numberOfOrders = (int)Math.round(resultSet1.getDouble(1));
-            } else {
-                String avgNumberOfOrdersQuery2 = "SELECT AVG(number_of_orders) FROM customer";
+                if (resultSet1.getInt(2) != 0) {
+                    numberOfOrders = (int) Math.round(resultSet1.getDouble(1));
+                }
+                else {
+                    String avgNumberOfOrdersQuery2 = "SELECT AVG(number_of_orders) FROM customer";
 
-                ResultSet resultSet2 = stmt.executeQuery(avgNumberOfOrdersQuery2);
-                if(resultSet2.next()) {
-                    numberOfOrders = (int)Math.round(resultSet2.getDouble(1));
-                } else {
-                    numberOfOrders = 0;
+                    ResultSet resultSet2 = stmt.executeQuery(avgNumberOfOrdersQuery2);
+                    if(resultSet2.next()) {
+                        numberOfOrders = (int)Math.round(resultSet2.getDouble(1));
+                    }
                 }
             }
 
-            // calculate number of orders here
-            String insertStatement = String.format("INSERT INTO Customer (cid, cname, number_of_orders, lvl) + " +
-                    "values(%d,%s,%d,%s)",id,name,numberOfOrders,level);
+            {
+                CallableStatement addCustomer = dbConnection.prepareCall ("begin addcustomer (?,?,?,?); end;");
+                addCustomer.setInt(1, id);
+                addCustomer.setString(2,name);
+                addCustomer.setInt(3,numberOfOrders);
+                addCustomer.setString(4,level);
+                addCustomer.execute ();
+                addCustomer.close();
+            }
+            dbConnection.close();
         }
         catch( SQLException x ){
             System.out.println( "Couldn't get connection!" );
+            System.out.println(x.getMessage());
         }
         catch( Exception e) {
             System.out.println(e.getMessage());
@@ -61,7 +76,7 @@ class SteeringWheel {
         }
     }
 
-    // Increases the salaries of all the translators
+    // Increases the salaries of all the translators by amounts that are based on the authors translated
     public void TranslatorSalaryHike(String authorName) {
         Connection dbConnection;
         try {
@@ -70,45 +85,33 @@ class SteeringWheel {
             System.out.println("Unable to load driver class: " + ex.getMessage());
         }
 
-        //////////////////
-        /// REWRITE USING PL SQL
-        //////////////////
-
         try{
             dbConnection= DriverManager.getConnection
                     ("jdbc:oracle:thin:@//oracle.cs.ou.edu:1521/pdborcl.cs.ou.edu",oracleLoginName,oraclePassword);
             Statement stmt = dbConnection.createStatement();
 
-            String translatedAuthor = String.format("UPDATE translator set salary = salary * 1.1 " +
-                    "WHERE tid in " +
-                    "(SELECT tid FROM book WHERE btitle in " +
-                    "(SELECT btitle FROM wrote WHERE aid in " +
-                    "(SELECT aid FROM author WHERE aname = '%s')))",authorName);
-
-            String didNotTranslateAuthorAnd3OrMoreBooks = String.format("UPDATE translator set salary = salary * 1.05 " +
-                    "WHERE tid NOT in " +
-                    "(SELECT tid FROM book WHERE btitle in " +
-                    "(SELECT btitle FROM wrote WHERE aid in " +
-                    "(SELECT aid FROM author WHERE aname = '%s'))) " +
-                    "AND tname in " +
-                    "(SELECT tname FROM translator " +
-                    "JOIN book ON book.tid = translator.tid " +
-                    "GROUP BY tname HAVING COUNT(tname) > 2)",authorName);
-
-            String didNotTranslateAuthorAndLessThan3Books = String.format("UPDATE translator set salary = salary * 1.02 " +
-                    "WHERE tid NOT in " +
-                    "(SELECT tid FROM book WHERE btitle in " +
-                    "(SELECT btitle FROM wrote WHERE aid in " +
-                    "(SELECT aid FROM author WHERE aname = '%s'))) " +
-                    "AND tname NOT in " +
-                    "(SELECT tname FROM translator " +
-                    "JOIN book ON book.tid = translator.tid " +
-                    "GROUP BY tname HAVING COUNT(tname) > 2)",authorName);
-
-            // executes the statements
-            stmt.execute(translatedAuthor);
-            stmt.execute(didNotTranslateAuthorAnd3OrMoreBooks);
-            stmt.execute(didNotTranslateAuthorAndLessThan3Books);
+            // executes procedures to update translator salaries as needed
+            // updates salaries of translators that translated books by the given author
+            {
+                CallableStatement translatedAuthor = dbConnection.prepareCall ("begin hikesalarytranslatedauthor (?); end;");
+                translatedAuthor.setString(1, authorName);
+                translatedAuthor.execute ();
+                translatedAuthor.close();
+            }
+            // updates salaries of translators that have not translated books by the given author but have translated more than 3 books
+            {
+                CallableStatement didNotTranslateAuthorAnd3OrMoreBooks = dbConnection.prepareCall ("begin hikesalaryoption2 (?); end;");
+                didNotTranslateAuthorAnd3OrMoreBooks.setString(1, authorName);
+                didNotTranslateAuthorAnd3OrMoreBooks.execute ();
+                didNotTranslateAuthorAnd3OrMoreBooks.close();
+            }
+            // updates salaries of translators that have not translated books by the given author and have not translated more than 3 books
+            {
+                CallableStatement didNotTranslateAuthorAndLessThan3Books = dbConnection.prepareCall ("begin hikesalaryoption3 (?); end;");
+                didNotTranslateAuthorAndLessThan3Books.setString(1, authorName);
+                didNotTranslateAuthorAndLessThan3Books.execute ();
+                didNotTranslateAuthorAndLessThan3Books.close();
+            }
         }
         catch( SQLException x ){
             System.out.println( "Couldn't get connection!" );
@@ -120,7 +123,7 @@ class SteeringWheel {
 
     }
 
-    // Returns a result set of customers
+    // Returns a result set of all customers
     public ResultSet GetCustomers() {
 
         Connection dbConnection;
@@ -136,8 +139,9 @@ class SteeringWheel {
             Statement stmt = dbConnection.createStatement();
 
             // Query for selecting customer
-            String customerQuery = "SELECT * FROM customer;";
+            String customerQuery = "SELECT cid, cname, number_of_orders, lvl FROM customer";
 
+            // return result of query
             return stmt.executeQuery(customerQuery);
 
         }
@@ -151,7 +155,7 @@ class SteeringWheel {
         return null;
     }
 
-    // Returns a result set of translators
+    // Returns a result set of all translators
     public ResultSet GetTranslators() {
 
         Connection dbConnection;
@@ -168,7 +172,7 @@ class SteeringWheel {
             Statement stmt = dbConnection.createStatement();
 
             // Query for selecting all translation
-            String translatorQuery = "SELECT * FROM translator;";
+            String translatorQuery = "SELECT tid, tname, salary FROM translator";
 
             // Executes query and returns the result set
             return stmt.executeQuery(translatorQuery);
@@ -184,7 +188,7 @@ class SteeringWheel {
     }
 
     // Gracefully Exits program
-    public void Option4() {
+    public void Exit() {
         int dialogButton = JOptionPane.YES_NO_OPTION;
         int dialogResult = JOptionPane.showConfirmDialog(null, "Are you sure you want to quit?", "Warning", dialogButton);
         if (dialogResult == JOptionPane.YES_OPTION) {
@@ -192,6 +196,54 @@ class SteeringWheel {
         }
     }
 
+    // Creates the stored PL/SQL procedures
+    private void init (Connection conn)
+            throws SQLException
+    {
+        Statement stmt = conn.createStatement();
+        try {
+            // stored procedure for adding a customer
+            stmt.execute("CREATE or REPLACE PROCEDURE addcustomer (cid INT, cname VARCHAR, number_of_orders INT, lvl VARCHAR) " +
+                    "is begin INSERT INTO Customer values (cid, cname, number_of_orders, lvl); end;");
+
+            // stored procedures for salary hikes
+            stmt.execute("CREATE or REPLACE PROCEDURE  hikesalarytranslatedauthor (authorName VARCHAR ) " +
+                    "is begin UPDATE translator set salary = salary * 1.1 " +
+                    "WHERE tid in " +
+                    "(SELECT tid FROM book WHERE btitle in " +
+                    "(SELECT btitle FROM wrote WHERE aid in " +
+                    "(SELECT aid FROM author WHERE aname = authorName))); end;");
+
+
+            stmt.execute("CREATE or REPLACE PROCEDURE hikesalaryoption2 (authorName VARCHAR ) " +
+                    "is begin UPDATE translator set salary = salary * 1.05 " +
+                            "WHERE tid NOT in " +
+                            "(SELECT tid FROM book WHERE btitle in " +
+                            "(SELECT btitle FROM wrote WHERE aid in " +
+                            "(SELECT aid FROM author WHERE aname = authorName))) " +
+                            "AND tname in " +
+                            "(SELECT tname FROM translator " +
+                            "JOIN book ON book.tid = translator.tid " +
+                            "GROUP BY tname HAVING COUNT(tname) > 2); end;");
+
+
+            stmt.execute("CREATE or REPLACE PROCEDURE hikesalaryoption3 (authorname VARCHAR ) " +
+                    "is begin UPDATE translator set salary = salary * 1.02 " +
+                    "WHERE tid NOT in " +
+                    "(SELECT tid FROM book WHERE btitle in " +
+                    "(SELECT btitle FROM wrote WHERE aid in " +
+                    "(SELECT aid FROM author WHERE aname = authorName))) " +
+                    "AND tname NOT in " +
+                    "(SELECT tname FROM translator " +
+                    "JOIN book ON book.tid = translator.tid " +
+                    "GROUP BY tname HAVING COUNT(tname) > 2); end;");
+
+            stmt.close();
+        } catch (SQLException e) {
+        }
+    }
+
+    // GUI frame
     public class ProjectFrame extends JFrame {
 
         OutputPanel textPanel;
@@ -209,7 +261,7 @@ class SteeringWheel {
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(WindowEvent e) {
-                    Option4();
+                    Exit();
                 }
             });
             setTitle("Group25 Project");
@@ -233,7 +285,7 @@ class SteeringWheel {
                     myPanel.add(Box.createHorizontalStrut(15));
 
                     int result = JOptionPane.showConfirmDialog(null, myPanel,
-                            "Please Enter X and Y Values", JOptionPane.OK_CANCEL_OPTION);
+                            "Please Enter Customer Fields", JOptionPane.OK_CANCEL_OPTION);
                     if (result == JOptionPane.OK_OPTION) {
                         AddCustomer(Integer.parseInt(idField.getText()), cNameField.getText(), levelField.getText());
                     }
@@ -259,17 +311,26 @@ class SteeringWheel {
                     ResultSet cSet = GetCustomers();
                     ResultSet tSet = GetTranslators();
                     try {
+                        returnString.append("CID\tNAME\tNUMBER OF ORDERS\tLEVEL\n");
                         while (cSet.next()) {
-                            returnString.append(cSet.getString("cid") + ": " + cSet.getString("cname") + ", " + cSet.getString("number_of_orders") + ", " + cSet.getString("level") + "\n");
+                            returnString.append(cSet.getInt(1) + ":\t "
+                                    + cSet.getString(2) + ",\t "
+                                    + cSet.getInt(3) + ",\t\t "
+                                    + cSet.getString(4) + "\n");
                         }
                         returnString.append("\nTranslators:\n");
+                        returnString.append("TID\tNAME\tSALARY\n");
                         while (tSet.next()) {
-                            returnString.append(tSet.getString("cid") + ": " + tSet.getString("cname") + ", " + tSet.getString("number_of_orders") + ", " + tSet.getString("level") + "\n");
+                            returnString.append(tSet.getInt(1) + ":\t "
+                                    + tSet.getString(2) + ",\t "
+                                    + tSet.getFloat(3) + "\n");
                         }
                         displayArea.setText(returnString.toString());
                         displayPanel.setViewportView(displayArea);
                     } catch (SQLException e1) {
                         e1.printStackTrace();
+                    } catch (NullPointerException e2) {
+                        System.out.println("No data to display");
                     }
                 }
             });
@@ -277,7 +338,7 @@ class SteeringWheel {
             quitButton.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Option4();
+                    Exit();
                 }
             });
         }
@@ -302,8 +363,8 @@ class SteeringWheel {
             masterPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Group25 Project", TitledBorder.RIGHT, TitledBorder.TOP));
             hikeSallariesButton = new JButton();
             hikeSallariesButton.setHideActionText(true);
-            hikeSallariesButton.setText("Hike Sallaries");
-            hikeSallariesButton.setToolTipText("Click this to open the \"Hike Sallary\" pop-up, which will allow you to enter an author to hike the translators sallaries over.");
+            hikeSallariesButton.setText("Hike Salaries");
+            hikeSallariesButton.setToolTipText("Click this to open the \"Hike Sallary\" pop-up, which will allow you to enter an author to hike the translators salaries over.");
             GridBagConstraints gbc;
             gbc = new GridBagConstraints();
             gbc.gridx = 0;
@@ -379,10 +440,9 @@ class SteeringWheel {
 
 public class Driver {
     public static void main(String[] args) {
-        SteeringWheel s = new SteeringWheel();
-        SteeringWheel.ProjectFrame p = s.new ProjectFrame();
+        GroupProject s = new GroupProject();
+        GroupProject.ProjectFrame p = s.new ProjectFrame();
 
-        //p.pack();
         p.setVisible(true);
     }
 }
